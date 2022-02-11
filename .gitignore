@@ -1,3 +1,5 @@
+*.wav
+
 ### Autotools ###
 # http://www.gnu.org/software/automake
 
