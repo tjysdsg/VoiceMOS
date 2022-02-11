@@ -1,0 +1,236 @@
+============================================
+=== README: VoiceMOS Challenge resources ===
+============================================
+
+This package contains the preprocessed samples for the training and development
+sets for the VoiceMOS Challenge that we are allowed to distribute.
+
+We do not distribute the Blizzard Challenge samples since this is not permitted
+by the terms of use.  Instead, please use these scripts to download and
+preprocess them.
+
+Please read these instructions carefully.  You need to follow these steps to
+obtain ALL of the data needed for the training phase of the challenge.
+
+
+========================
+=== The BVCC Dataset ===
+========================
+
+This dataset is named "BVCC," since it contains generated samples from past
+Blizzard and Voice Conversion Challenges.  It also contains samples which have
+been made public by ESPnet-TTS.  For more details about the dataset and how it
+was collected, please see:
+
+"How do Voices from Past Speech Synthesis Challenges Compare Today?"
+Erica Cooper, Junichi Yamagishi
+ISCA Speech Synthesis Workshop 2021
+https://arxiv.org/abs/2105.02373
+
+Because this dataset is composed of generated samples from multiple past
+challenges, and because the terms of use of the Blizzard Challenge system
+samples are that they may not be redistributed, you need to download data for
+each challenge one by one from the servers where they are hosted.  Then, the
+samples in the downloaded data need to be preprocessed in the same manner as we
+used for our listening test and other experiments.  This is why the downloading
+process has many steps and takes a long time.
+
+
+====================
+=== Dependencies ===
+====================
+
+ * Python 3.9
+ Please use Python 3.9 to run these python scripts.
+
+ * SoX
+ SoX is used to preprocess audio by downsampling it to 16kHz.
+ SoX can be obtained here: http://sox.sourceforge.net
+ Please install it by yourself if you don't already have it.
+ You also need to make sure it is on your system path.  To check this, run
+   which sox
+ and make sure it shows the location of the sox binary.
+
+ * sv56
+ sv56 is used for amplitude normalization.  Since the listener scores we
+ distribute are based on listening tests that used normalized samples, it is
+ important that you also use samples that are normalized in the same way.
+ If you don't already have sv56demo on your path, you can compile it as follows:
+   cd sv56demo/src
+   ./00_make.sh
+
+ If compilation was successful, you should find the binary at
+   sv56demo/bin/sv56demo
+
+ You need to add this binary to your system path.  You can do this by running
+   export PATH="$PATH:/path/to/your/phase1-main/sv56demo/bin"
+ (Of course, please replace '/path/to/your/' with the actual location of your
+ phase1-main directory.)
+
+ You can also write this line in your ~/.bashrc file and run
+   source ~/.bashrc
+ to place this permanently on your path so that you don't have to re-run the
+ command in each new terminal instance.
+
+ To check that sv56 has been properly added to your path, run:
+   which sv56demo
+ It should show the path to your sv56demo binary.  If it shows an empty result,
+ then it is not on your path and preprocessing will fail.
+
+ * Other requirements
+   * standard command line utilities such as wget, md5sum, gawk, gcc,
+     automake, grep, etc.
+   * PLEASE NOTE: The size of the final dataset is 74GB, and additional storage
+     is required for temporary files.  Please make sure that you have sufficient
+     storage.
+
+
+========================================
+=== Download Blizzard Challenge data ===
+========================================
+
+The terms of use of the Blizzard Challenge data stipulate that the data may not
+be redistributed.  Some individual teams also stipulate that their samples may
+be used for research purposes only, and may not be used for commercial purposes.
+
+By participating in the VoiceMOS Challenge, you are agreeing to abide by the
+terms of use of the Blizzard data.  You may NOT redistribute the samples or use
+them for commercial purposes.  For more information, please see:
+https://www.cstr.ed.ac.uk/projects/blizzard/data.html
+
+It takes some time to download archives for multiple Blizzard Challenge years.
+Please make sure that you have a stable internet connection, and please be
+patient!
+
+Launch download and extraction of Blizzard samples by running:
+  python 01_get.py
+  
+
+========================================================
+=== Gather and preprocess Blizzard Challenge samples ===
+========================================================
+
+1. Run:
+     python 02_gather.py
+
+This script selects the samples used for the VoiceMOS Challenge from the
+various Blizzard datasets.  Remember that you need to use Python version 3.9 --
+if you see an error about character encodings, it's most likely because you are
+using a non-3.9 version.
+
+
+2. Run: 
+     python 03_preprocess.py
+
+This script runs downsampling to 16kHz on the selected Blizzard samples,
+followed by sv56 amplitude normalization.
+
+Final processed audio data for the challenge can be found in
+  DATA/wav/*.wav
+
+IMPORTANT: Please use the data in DATA/ for the challenge.  You may NOT use any
+other Blizzard data, Voice Conversion Challenge data, or published samples from
+ESPnet-TTS for this challenge, but you are allowed to use other external data
+as long as you document it in your system description.
+
+
+========================
+=== Train / dev sets ===
+========================
+
+Training and development partitions can be found in
+  DATA/sets
+
+train_mos_list.txt and val_mos_list.txt contain the list of wav files and their
+AVERAGED MOS scores over all 8 listeners who rated them.
+
+TRAINSET and DEVSET contain the individual ratings from each rater, along with
+some demographic information for the rater.
+The format is as follows:
+
+  sysID,uttID,rating,ignore,listenerinfo
+
+The listener info is as follows:
+
+  {}_AGERANGE_LISTENERID_GENDER_[ignore]_[ignore]_HEARINGIMPAIRMENT
+
+DEVSET and val_mos_list.txt are the same set (the terms dev and val are used
+interchangeably here).
+
+During the training phase of the challenge, predicted scores for the development
+set will be posted to the leaderboard.
+
+Data for the evaluation phase will be released later, separately.
+
+The file DATA/mydata_system.csv contains system-averaged MOS scores.
+These averages are based on the samples for which you currently have MOS labels.
+
+
+=================
+=== IMPORTANT ===
+=================
+
+Do not delete anything in this directory!!!  You will need components from this
+repository in other phases of the challenge.
+
+
+===============================
+=== TROUBLESHOOTING AND FAQ ===
+===============================
+
+Q. Why does this process take so long and have so many steps?
+
+A. The terms of use of the Blizzard Challenge data state that we may not
+   redistribute it.  So, in order to make the data available to you in the
+   exact preprocessed form that we used for the BVCC listening test, we are
+   providing these scripts for you to download and preprocess the data yourself.
+   Even though we cannot distribute the data directly, the data after downloading
+   and preprocessing should be identical to the BVCC data that we used for
+   training baselines etc.
+
+Q. What is silence.wav?  Why is there one silent audio file?
+
+A. The audio data used in this challenge comes from past synthesis challenges
+   such as the Blizzard Challenge and the Voice Conversion Challenge.  There
+   is one silent audio file because that is what one team submitted for one of
+   the Blizzard Challenges.  When you try to sv56-normalize a totally silent
+   audio file, the header becomes corrupted.  So, we replace the corrupted audio
+   file with a silent audio file that has a non-corrupted header.  If you found
+   the silent audio file in the processed data, it's supposed to be there.
+
+Q. I have errors or missing audio files!  What do I do?
+
+A. Please contact ecooper@nii.ac.jp with a detailed description of the problem
+   and ideally, the output that was printed to the terminal.
+
+
+========================
+=== Acknowledgements ===
+========================
+
+Many thanks to the organizers of the Blizzard and Voice Conversion Challenges,
+and to the authors of ESPnet-TTS, who have kindly made these samples available.
+
+This work is supported by JST CREST grants JPMJCR18A6, JPMJCR20D3, and
+JPMJCR19A3, and by MEXT KAKENHI grants 21K11951 and 21K19808.
+
+
+================================
+=== Authors and contact info ===
+================================
+
+For questions about the data and scripts:
+Erica Cooper
+ecooper@nii.ac.jp
+
+For questions about the challenge platform on CodaLab:
+Wen-Chin Huang
+wen.chinhuang@g.sp.m.is.nagoya-u.ac.jp
+
+Challenge organizers:
+Wen-Chin Huang(1), Erica Cooper(2), Yu Tsao(3), Hsin-Min Wang(3),
+Junichi Yamagishi(2), Tomoki Toda(1)
+
+(1) Nagoya University, Japan
+(2) National Institute of Informatics, Japan
+(3) Academia Sinica, Taiwan

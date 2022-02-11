@@ -1,0 +1,20 @@
+Congratulations!  You found the hidden data directory.
+
+Please don't delete this directory.  You will need it later during other phases
+of the challenge.  Since the data is hosted at Edinburgh and we are not allowed
+to redistribute it, we don't want to spam their servers downloading the same
+data many times.  Also, remember how long it took to download all this data?
+You don't want to have to do that again, right?  So, please don't touch this
+directory until after the challenge.
+
+We would also like to remind you that looking at Blizzard data outside of the
+sets that were compiled for the challenge is considered cheating.  That includes
+the data in this directory.  Please use the processed data in the DATA/
+directory instead.
+
+We would like to emphasize that participation in this challenge is VOLUNTARY,
+and that it is intended as a research community event to expand our collective
+knowledge in the field of MOS prediction and to compare different approaches
+fairly.  It is not a challenge for reverse-engineering the datasets.  Please
+abide by the spirit of the challenge and do your part to maintain a community
+that values research integrity and fairness.
