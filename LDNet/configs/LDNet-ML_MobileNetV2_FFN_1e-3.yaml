@@ -1,0 +1,81 @@
+# model configurations
+model: "LDNet"
+audio_input_dim: 257
+judge_emb_dim: 128
+
+encoder_type: "mobilenetv2"
+encoder_conv_first_ch: 1
+
+# https://github.com/pytorch/vision/blob/main/torchvision/models/mobilenetv2.py#L128
+encoder_conv_t:
+  - 1
+  - 6
+  - 6
+  - 6
+  - 6
+  - 6
+  - 6
+encoder_conv_c:
+  - 16
+  - 24
+  - 32
+  - 64
+  - 96
+  - 160
+  - 320
+encoder_conv_n:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 3
+  - 3
+  - 1
+encoder_conv_s:
+  - 1
+  - 2
+  - 2
+  - 2
+  - 1
+  - 2
+  - 1
+encoder_output_dim: 256
+
+decoder_type: "ffn"
+decoder_rnn_dim: 128
+decoder_dnn_dim: 64
+decoder_dropout_rate: 0.3
+
+activation: "ReLU"
+range_clipping: True # this is needed if output_type is scalar
+combine_mean_score: False
+use_mean_listener: True
+
+output_type: "scalar"
+
+# training configurations
+optimizer:
+  name: "RMSprop"
+  lr: 1.0e-3
+  # the following params come from
+  # https://github.com/pytorch/vision/blob/c2ab0c59f42babf9ad01aa616cd8a901daac86dd/references/classification/train.py#L172-L173
+  eps: 0.0316
+  alpha: 0.9
+scheduler:
+  name: "stepLR"
+  step_size: 1000
+  gamma: 0.97
+train_batch_size: 30
+test_batch_size: 1
+inference_mode: "mean_listener"
+
+use_mean_net: False
+alpha: 0
+lambda: 1
+tau: 0.5
+
+padding_mode: "repetitive" # repetitive, zero_padding
+mask_loss: False
+total_steps: 100000
+valid_steps: 1000
+grad_clip: 1
