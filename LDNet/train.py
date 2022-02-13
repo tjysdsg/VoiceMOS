@@ -84,7 +84,7 @@ def valid(mode, model, dataloader, systems, save_dir, steps, prefix):
     save_results(steps, [utt_MSE, utt_LCC, utt_SRCC, utt_KTAU], [sys_MSE, sys_LCC, sys_SRCC, sys_KTAU],
                  os.path.join(save_dir, "training_" + mode + ".csv"))
 
-    torch.save(model.state_dict(), os.path.join(save_dir, f"model-{steps}.pt"))
+    torch.save(model.module.state_dict(), os.path.join(save_dir, f"model-{steps}.pt"))
     model.train()
 
 
@@ -132,7 +132,7 @@ def main():
     train_set = get_dataset(args.dataset_name, args.data_dir, "train", idtable_path, config["padding_mode"],
                             config["use_mean_listener"])
     valid_set = get_dataset(args.dataset_name, args.data_dir, "valid", idtable_path)
-    train_loader = get_dataloader(train_set, batch_size=config["train_batch_size"], num_workers=6)
+    train_loader = get_dataloader(train_set, batch_size=config["train_batch_size"], num_workers=2)
     valid_loader = get_dataloader(valid_set, batch_size=config["test_batch_size"], num_workers=1, shuffle=False)
     print("[Info] Number of training samples: {}".format(len(train_set)))
     print("[Info] Number of validation samples: {}".format(len(valid_set)))
@@ -164,6 +164,9 @@ def main():
             if mod.startswith("judge_embedding"):
                 print("[Info] Freezing {}".format(mod))
                 param.requires_grad = False
+
+    # multi-gpu
+    model = torch.nn.DataParallel(model)
 
     # optimizer
     optimizer = get_optimizer(model, config["total_steps"], config["optimizer"])
