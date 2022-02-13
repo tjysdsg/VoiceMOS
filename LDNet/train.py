@@ -7,7 +7,6 @@ import numpy as np
 import scipy
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from dataset import get_dataloader, get_dataset
@@ -40,11 +39,11 @@ def valid(mode, model, dataloader, systems, save_dir, steps, prefix):
             try:
                 # actual inference
                 if mode == "mean_net":
-                    pred_mean_scores = model.only_mean_inference(spectrum=mag_sgrams_padded)
+                    pred_mean_scores = model.module.only_mean_inference(spectrum=mag_sgrams_padded)
                 elif mode == "all_listeners":
-                    pred_mean_scores, _ = model.average_inference(spectrum=mag_sgrams_padded)
+                    pred_mean_scores, _ = model.module.average_inference(spectrum=mag_sgrams_padded)
                 elif mode == "mean_listener":
-                    pred_mean_scores = model.mean_listener_inference(spectrum=mag_sgrams_padded)
+                    pred_mean_scores = model.module.mean_listener_inference(spectrum=mag_sgrams_padded)
                 else:
                     raise NotImplementedError
 
