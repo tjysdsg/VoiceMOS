@@ -6,6 +6,7 @@
 
 import os
 import argparse
+from tqdm import tqdm
 import fairseq
 import torch
 import torchaudio
@@ -119,8 +120,10 @@ def main():
     net = MosPredictor(ssl_model, SSL_OUT_DIM)
     net = net.to(device)
 
-    if my_checkpoint != None:  ## do (further) finetuning
+    if my_checkpoint is not None:  # do (further) finetuning
         net.load_state_dict(torch.load(my_checkpoint))
+
+    net = torch.nn.DataParallel(net)
 
     criterion = nn.L1Loss()
     optimizer = optim.SGD(net.parameters(), lr=0.0001, momentum=0.9)
@@ -132,7 +135,7 @@ def main():
         STEPS = 0
         net.train()
         running_loss = 0.0
-        for i, data in enumerate(trainloader, 0):
+        for i, data in enumerate(tqdm(trainloader)):
             inputs, labels, filenames = data
             inputs = inputs.to(device)
             labels = labels.to(device)
@@ -145,12 +148,13 @@ def main():
             running_loss += loss.item()
         print('EPOCH: ' + str(epoch))
         print('AVG EPOCH TRAIN LOSS: ' + str(running_loss / STEPS))
+
         epoch_val_loss = 0.0
         net.eval()
-        ## clear memory to avoid OOM
+        # clear memory to avoid OOM
         with torch.cuda.device(device):
             torch.cuda.empty_cache()
-        ## validation
+        # validation
         VALSTEPS = 0
         for i, data in enumerate(validloader, 0):
             VALSTEPS += 1
@@ -167,13 +171,12 @@ def main():
             print('Loss has decreased')
             PREV_VAL_LOSS = avg_val_loss
             PATH = os.path.join(ckptdir, 'ckpt_' + str(epoch))
-            torch.save(net.state_dict(), PATH)
+            torch.save(net.module.state_dict(), PATH)
             patience = orig_patience
         else:
             patience -= 1
             if patience == 0:
-                print('loss has not decreased for ' + str(orig_patience) + ' epochs; early stopping at epoch ' + str(
-                    epoch))
+                print(f'loss has not decreased for {orig_patience} epochs; early stopping at epoch {epoch}')
                 break
 
     print('Finished Training')
