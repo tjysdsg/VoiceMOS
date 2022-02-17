@@ -131,10 +131,13 @@ class SLDNet(nn.Module):
 
         return mean_score, ld_score
 
-    def mean_listener_inference(self, spectrum):
+    def mean_listener_inference(self, spectrum, spk_embed):
         assert self.config["use_mean_listener"]
         batch, time, dim = spectrum.shape
         device = spectrum.device
+
+        # get speaker embedding
+        spk_embed = torch.stack([spk_embed for _ in range(time)], dim=1)  # (batch, time, spk_embed_dim)
 
         # get judge embedding
         judge_id = (torch.ones(batch, dtype=torch.long) * self.num_judges - 1).to(device)  # (bs)
@@ -143,8 +146,12 @@ class SLDNet(nn.Module):
 
         # encoder and inject judge embedding
         if self.config["encoder_type"] in ["mobilenetv2", "mobilenetv3"]:
+            # concat spectrum with speaker embedding
             spectrum = spectrum.unsqueeze(1)
-            encoder_outputs = self.encoder(spectrum)  # (batch, ch, time, feat_dim)
+            spk_embed = spk_embed.unsqueeze(1)
+            encoder_input = torch.cat([spectrum, spk_embed], dim=-1)
+
+            encoder_outputs = self.encoder(encoder_input)  # (batch, ch, time, feat_dim)
             encoder_outputs = encoder_outputs.view((batch, time, -1))  # (batch, time, feat_dim)
             decoder_inputs = torch.cat([encoder_outputs, judge_feat], dim=-1)  # concat along feature dimension
         else:
@@ -162,13 +169,16 @@ class SLDNet(nn.Module):
         scores = torch.mean(decoder_outputs, dim=1)
         return scores
 
-    def average_inference(self, spectrum, include_meanspk=False):
+    def average_inference(self, spectrum, spk_embed, include_meanspk=False):
         bs, time, _ = spectrum.shape
         device = spectrum.device
         if self.config["use_mean_listener"] and not include_meanspk:
             actual_num_judges = self.num_judges - 1
         else:
             actual_num_judges = self.num_judges
+
+        # get speaker embedding
+        spk_embed = torch.stack([spk_embed for _ in range(time)], dim=1)  # (batch, time, spk_embed_dim)
 
         # all judge ids
         judge_id = torch.arange(actual_num_judges, dtype=torch.long).repeat(bs, 1).to(device)  # (bs, nj)
@@ -177,8 +187,12 @@ class SLDNet(nn.Module):
 
         # encoder and inject judge embedding
         if self.config["encoder_type"] in ["mobilenetv2", "mobilenetv3"]:
+            # concat spectrum with speaker embedding
             spectrum = spectrum.unsqueeze(1)
-            encoder_outputs = self.encoder(spectrum)  # (batch, ch, time, feat_dim)
+            spk_embed = spk_embed.unsqueeze(1)
+            encoder_input = torch.cat([spectrum, spk_embed], dim=-1)
+
+            encoder_outputs = self.encoder(encoder_input)  # (batch, ch, time, feat_dim)
             encoder_outputs = encoder_outputs.view((bs, time, -1))  # (batch, time, feat_dim)
             decoder_inputs = torch.stack([encoder_outputs for i in range(actual_num_judges)],
                                          dim=1)  # (bs, nj, time, feat_dim)

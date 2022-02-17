@@ -33,19 +33,26 @@ def valid(mode, model, dataloader, systems, save_dir, steps, prefix):
     true_sys_mean_scores = {system: [] for system in systems}
 
     for i, batch in enumerate(tqdm(dataloader, ncols=0, desc=prefix, unit=" step")):
-        mag_sgrams_padded, avg_scores, sys_names, wav_names = batch
+        mag_sgrams_padded, spk_embed, avg_scores, sys_names, wav_names = batch
         mag_sgrams_padded = mag_sgrams_padded.to(device)
+        spk_embed = spk_embed.to(device)
 
         # forward
         with torch.no_grad():
             try:
                 # actual inference
                 if mode == "mean_net":
-                    pred_mean_scores = model.module.only_mean_inference(spectrum=mag_sgrams_padded)
+                    pred_mean_scores = model.module.only_mean_inference(spectrum=mag_sgrams_padded, spk_embed=spk_embed)
                 elif mode == "all_listeners":
-                    pred_mean_scores, _ = model.module.average_inference(spectrum=mag_sgrams_padded)
+                    pred_mean_scores, _ = model.module.average_inference(
+                        spectrum=mag_sgrams_padded,
+                        spk_embed=spk_embed
+                    )
                 elif mode == "mean_listener":
-                    pred_mean_scores = model.module.mean_listener_inference(spectrum=mag_sgrams_padded)
+                    pred_mean_scores = model.module.mean_listener_inference(
+                        spectrum=mag_sgrams_padded,
+                        spk_embed=spk_embed
+                    )
                 else:
                     raise NotImplementedError
 
