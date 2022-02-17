@@ -109,6 +109,7 @@ def main():
 
     # finetuning related
     parser.add_argument("--pretrained_model_path", type=str, default=None)
+    parser.add_argument("--resume", type=str, default=None)
     parser.add_argument("--fix_main_module", action="store_true")
 
     args = parser.parse_args()
@@ -169,6 +170,12 @@ def main():
         pretrained_model_state_dict = torch.load(args.pretrained_model_path)
         pretrained_model_state_dict.pop("judge_embedding.weight", None)
         model.load_state_dict(pretrained_model_state_dict, strict=False)
+
+    # resume training
+    if args.resume is not None:
+        print("[Info] Resuming from {}".format(args.resume))
+        model.load_state_dict(torch.load(args.resume))
+
     if args.fix_main_module:
         for mod, param in model.named_parameters():
             if mod.startswith("judge_embedding"):
