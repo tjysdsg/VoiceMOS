@@ -23,6 +23,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def valid(mode, model, dataloader, systems, save_dir, steps, prefix):
+    torch.save(model.module.state_dict(), os.path.join(save_dir, f"model-{steps}.pt"))
+
     model.eval()
 
     predict_mean_scores = []
@@ -83,7 +85,6 @@ def valid(mode, model, dataloader, systems, save_dir, steps, prefix):
     save_results(steps, [utt_MSE, utt_LCC, utt_SRCC, utt_KTAU], [sys_MSE, sys_LCC, sys_SRCC, sys_KTAU],
                  os.path.join(save_dir, "training_" + mode + ".csv"))
 
-    torch.save(model.module.state_dict(), os.path.join(save_dir, f"model-{steps}.pt"))
     model.train()
 
 
