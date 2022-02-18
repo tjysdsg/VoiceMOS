@@ -44,11 +44,12 @@ class SLDNet(nn.Module):
 
         # define decoder
         if config["decoder_type"] == "ffn":
-            decoder_dnn_input_dim = config["encoder_output_dim"] + config["judge_emb_dim"]
+            decoder_dnn_input_dim = config["encoder_output_dim"] + config["judge_emb_dim"] + config["spk_embed_dim"]
         elif config["decoder_type"] == "rnn":
-            self.decoder_rnn = nn.LSTM(input_size=config["encoder_output_dim"] + config["judge_emb_dim"],
-                                       hidden_size=config["decoder_rnn_dim"],
-                                       num_layers=1, batch_first=True, bidirectional=True)
+            self.decoder_rnn = nn.LSTM(
+                input_size=config["encoder_output_dim"] + config["judge_emb_dim"] + config["spk_embed_dim"],
+                hidden_size=config["decoder_rnn_dim"], num_layers=1, batch_first=True, bidirectional=True
+            )
             decoder_dnn_input_dim = config["decoder_rnn_dim"] * 2
         # there is always dnn
         self.decoder_dnn = Projection(decoder_dnn_input_dim, config["decoder_dnn_dim"],
@@ -100,12 +101,10 @@ class SLDNet(nn.Module):
         if self.config["encoder_type"] in ["mbnetstyle", "mobilenetv2", "mobilenetv3"]:
             # concat spectrum with speaker embedding
             spectrum = spectrum.unsqueeze(1)
-            spk_embed = spk_embed.unsqueeze(1)
-            encoder_input = torch.cat([spectrum, spk_embed], dim=-1)
-
-            encoder_outputs = self.encoder(encoder_input)  # (batch, ch, time, feat_dim)
+            encoder_outputs = self.encoder(spectrum)  # (batch, ch, time, feat_dim)
             encoder_outputs = encoder_outputs.view((batch, time, -1))  # (batch, time, feat_dim)
-            decoder_inputs = torch.cat([encoder_outputs, judge_feat], dim=-1)  # concat along feature dimension
+            # concat along feature dimension
+            decoder_inputs = torch.cat([encoder_outputs, judge_feat, spk_embed], dim=-1)
         else:
             raise NotImplementedError
 
@@ -148,12 +147,10 @@ class SLDNet(nn.Module):
         if self.config["encoder_type"] in ["mobilenetv2", "mobilenetv3"]:
             # concat spectrum with speaker embedding
             spectrum = spectrum.unsqueeze(1)
-            spk_embed = spk_embed.unsqueeze(1)
-            encoder_input = torch.cat([spectrum, spk_embed], dim=-1)
-
-            encoder_outputs = self.encoder(encoder_input)  # (batch, ch, time, feat_dim)
+            encoder_outputs = self.encoder(spectrum)  # (batch, ch, time, feat_dim)
             encoder_outputs = encoder_outputs.view((batch, time, -1))  # (batch, time, feat_dim)
-            decoder_inputs = torch.cat([encoder_outputs, judge_feat], dim=-1)  # concat along feature dimension
+            # concat along feature dimension
+            decoder_inputs = torch.cat([encoder_outputs, judge_feat, spk_embed], dim=-1)
         else:
             raise NotImplementedError
 
@@ -179,6 +176,9 @@ class SLDNet(nn.Module):
 
         # get speaker embedding
         spk_embed = torch.stack([spk_embed for _ in range(time)], dim=1)  # (batch, time, spk_embed_dim)
+        spk_embed = torch.stack(
+            [spk_embed for _ in range(actual_num_judges)], dim=1
+        )  # (batch, nj, time, spk_embed_dim)
 
         # all judge ids
         judge_id = torch.arange(actual_num_judges, dtype=torch.long).repeat(bs, 1).to(device)  # (bs, nj)
@@ -189,14 +189,13 @@ class SLDNet(nn.Module):
         if self.config["encoder_type"] in ["mobilenetv2", "mobilenetv3"]:
             # concat spectrum with speaker embedding
             spectrum = spectrum.unsqueeze(1)
-            spk_embed = spk_embed.unsqueeze(1)
-            encoder_input = torch.cat([spectrum, spk_embed], dim=-1)
-
-            encoder_outputs = self.encoder(encoder_input)  # (batch, ch, time, feat_dim)
+            encoder_outputs = self.encoder(spectrum)  # (batch, ch, time, feat_dim)
             encoder_outputs = encoder_outputs.view((bs, time, -1))  # (batch, time, feat_dim)
-            decoder_inputs = torch.stack([encoder_outputs for i in range(actual_num_judges)],
-                                         dim=1)  # (bs, nj, time, feat_dim)
-            decoder_inputs = torch.cat([decoder_inputs, judge_feat], dim=-1)  # concat along feature dimension
+            decoder_inputs = torch.stack(
+                [encoder_outputs for i in range(actual_num_judges)], dim=1
+            )  # (bs, nj, time, feat_dim)
+            # concat along feature dimension
+            decoder_inputs = torch.cat([decoder_inputs, judge_feat, spk_embed], dim=-1)
         else:
             raise NotImplementedError
 
