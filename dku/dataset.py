@@ -5,7 +5,7 @@ import torch
 from torch.utils.data.dataset import Dataset
 from torch.utils.data import DataLoader
 import scipy
-from typing import Set
+
 from collections import defaultdict
 import h5py
 from torch.nn.utils.rnn import pad_sequence
@@ -38,19 +38,15 @@ class BCVCCDataset(Dataset):
             if os.path.isfile(idtable_path):
                 self.idtable = torch.load(idtable_path)
             elif self.split == "train":
-                self.idtable = {}
                 self.gen_idtable(metadata, idtable_path)
-            self.num_judges = len(self.idtable['listener'])
-            self.num_systems = len(self.idtable['system'])
+            self.num_judges = len(self.idtable)
 
         self.metadata = []
-        if self.split == "train":  # convert judge name to ids when training
-            for sys_name, wav_name, avg_score, score, judge_name in metadata:
-                self.metadata.append([
-                    self.idtable['system'][sys_name], wav_name, avg_score, score, self.idtable['listener'][judge_name]
-                ])
+        if self.split == "train":
+            for wav_name, judge_name, avg_score, score in metadata:
+                self.metadata.append([wav_name, avg_score, score, self.idtable[judge_name]])
         else:
-            for item in metadata:  # sys_name, wav_name, avg_score
+            for item in metadata:
                 self.metadata.append(item)
 
             # build system list
@@ -58,7 +54,7 @@ class BCVCCDataset(Dataset):
 
     def __getitem__(self, idx):
         if self.split == "train":
-            sys_id, wav_name, avg_score, score, judge_id = self.metadata[idx]
+            wav_name, avg_score, score, judge_id = self.metadata[idx]
         else:
             sys_name, wav_name, avg_score = self.metadata[idx]
 
@@ -83,7 +79,7 @@ class BCVCCDataset(Dataset):
         spk_embed = np.load(os.path.join(self.spk_embed_dir, wav_name.replace('.wav', '.npy')))
 
         if self.split == "train":
-            return mag_sgram, spk_embed, avg_score, score, sys_id, judge_id
+            return mag_sgram, spk_embed, avg_score, score, judge_id
         else:
             return mag_sgram, spk_embed, avg_score, sys_name, wav_name
 
@@ -94,37 +90,23 @@ class BCVCCDataset(Dataset):
         assert self.split == "train"
         mean_listener_metadata = []
         wav_names = set()
-        for sys_name, wav_name, _, avg_score, _ in original_metadata:
+        for wav_name, _, avg_score, _ in original_metadata:
             if wav_name not in wav_names:
-                mean_listener_metadata.append([sys_name, wav_name, avg_score, avg_score, "mean_listener"])
+                mean_listener_metadata.append([wav_name, "mean_listener", avg_score, avg_score])
                 wav_names.add(wav_name)
         return mean_listener_metadata
 
-    def _gen_ids(self, key: str, names: Set[str], use_mean_id):
-        names = list(names)
-        names.sort()
-        self.idtable[key] = {}
-        count = 0
-        for name in names:
-            # mean listener/system always takes the last id
-            if name != f'mean_{key}':
-                self.idtable[key][name] = count
-                count += 1
-        if use_mean_id:
-            self.idtable[key][f"mean_{key}"] = count
-            count += 1
-
     def gen_idtable(self, metadata, idtable_path):
-        assert self.split == "train"
-        systems = set()
-        judges = set()
-        for sys_name, _, _, _, judge_name in metadata:
-            systems.add(sys_name)
-            judges.add(judge_name)
-
-        self._gen_ids('listener', judges, self.use_mean_listener)
-        self._gen_ids('system', systems, True)  # TODO: use_mean_system option
-
+        self.idtable = {}
+        count = 0
+        for _, judge_name, _, _ in metadata:
+            # mean listener always takes the last id
+            if judge_name not in self.idtable and not judge_name == "mean_listener":
+                self.idtable[judge_name] = count
+                count += 1
+        if self.use_mean_listener:
+            self.idtable["mean_listener"] = count
+            count += 1
         torch.save(self.idtable, idtable_path)
 
     def collate_fn(self, batch):
@@ -158,9 +140,8 @@ class BCVCCDataset(Dataset):
             return mag_sgrams_padded, spk_embeds, avg_scores, sys_names, wav_names
         else:
             scores = torch.FloatTensor([sorted_batch[i][3] for i in range(bs)])
-            sys_ids = torch.LongTensor([sorted_batch[i][4] for i in range(bs)])
-            judge_ids = torch.LongTensor([sorted_batch[i][5] for i in range(bs)])
-            return mag_sgrams_padded, mag_sgrams_lengths, spk_embeds, avg_scores, scores, sys_ids, judge_ids
+            judge_ids = torch.LongTensor([sorted_batch[i][4] for i in range(bs)])
+            return mag_sgrams_padded, mag_sgrams_lengths, spk_embeds, avg_scores, scores, judge_ids
 
 
 def get_dataset(
@@ -192,7 +173,7 @@ def get_dataset(
             avg_score = np.mean(np.array(list(v.values())))
             if split == "train":
                 for judge_name, score in v.items():
-                    metadata_with_avg.append([sys_name, wav_name, avg_score, score, judge_name])
+                    metadata_with_avg.append([wav_name, judge_name, avg_score, score])
             else:
                 # in testing mode, additionally return system name and only average score
                 metadata_with_avg.append([sys_name, wav_name, avg_score])
