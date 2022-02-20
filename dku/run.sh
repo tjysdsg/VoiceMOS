@@ -1,3 +1,6 @@
+# run this script inside dku/
+export PYTHONPATH=$(pwd)
+
 python train.py \
   --dataset_name BVCC \
   --data_dir data/phase1_main/DATA \

@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from dataset import get_dataloader, get_dataset
 from models.MBNet import MBNet
-from models.LDNet import SLDNet
+from models.ldnet import SLDNet
 
 import scipy.stats
 import matplotlib
