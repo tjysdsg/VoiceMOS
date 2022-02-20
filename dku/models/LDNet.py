@@ -20,7 +20,13 @@ class SLDNet(nn.Module):
 
         # define judge embedding
         self.num_judges = config["num_judges"]
+        self.num_systems = config["num_systems"]
         self.judge_embedding = nn.Embedding(num_embeddings=self.num_judges, embedding_dim=config["judge_emb_dim"])
+
+        # system embedding
+        self.use_sys_embed = bool(config['use_sys_embed'])
+        if self.use_sys_embed:
+            self.sys_embedding = nn.Embedding(num_embeddings=self.num_systems, embedding_dim=config["sys_emb_dim"])
 
         # define activation
         if config["activation"] == "ReLU":
@@ -43,14 +49,20 @@ class SLDNet(nn.Module):
             raise NotImplementedError
 
         # define decoder
+        decoder_input_size = config["encoder_output_dim"] + config["judge_emb_dim"] + config["spk_embed_dim"]
+        if self.use_sys_embed:
+            decoder_input_size += config['sys_emb_dim']
         if config["decoder_type"] == "ffn":
-            decoder_dnn_input_dim = config["encoder_output_dim"] + config["judge_emb_dim"] + config["spk_embed_dim"]
+            decoder_dnn_input_dim = decoder_input_size
         elif config["decoder_type"] == "rnn":
             self.decoder_rnn = nn.LSTM(
-                input_size=config["encoder_output_dim"] + config["judge_emb_dim"] + config["spk_embed_dim"],
+                input_size=decoder_input_size,
                 hidden_size=config["decoder_rnn_dim"], num_layers=1, batch_first=True, bidirectional=True
             )
             decoder_dnn_input_dim = config["decoder_rnn_dim"] * 2
+        else:
+            raise RuntimeError(f"Invalid decoder_type: {config['decoder_type']}")
+
         # there is always dnn
         self.decoder_dnn = Projection(decoder_dnn_input_dim, config["decoder_dnn_dim"],
                                       activation, config["output_type"], config["range_clipping"])
@@ -64,6 +76,8 @@ class SLDNet(nn.Module):
                                             hidden_size=config["mean_net_rnn_dim"],
                                             num_layers=1, batch_first=True, bidirectional=True)
                 mean_net_dnn_input_dim = config["mean_net_rnn_dim"] * 2
+            else:
+                raise RuntimeError(f"Invalid decoder_type: {config['decoder_type']}")
             # there is always dnn
             self.mean_net_dnn = Projection(mean_net_dnn_input_dim, config["mean_net_dnn_dim"],
                                            activation, config["output_type"], config["mean_net_range_clipping"])
@@ -81,12 +95,25 @@ class SLDNet(nn.Module):
     def get_num_params(self):
         return sum(p.numel() for n, p in self.named_parameters())
 
-    def forward(self, spectrum, spk_embed, judge_id):
+    def _get_sys_feat(self, sys_id, time_size):
+        assert sys_id is not None
+        sys_feat = self.sys_embedding(sys_id)  # (batch, emb_dim)
+        sys_feat = torch.stack([sys_feat for _ in range(time_size)], dim=1)  # (batch, time, feat_dim)
+        return sys_feat
+
+    def _get_judge_feat(self, judge_id, time_size):
+        assert judge_id is not None
+        judge_feat = self.judge_embedding(judge_id)  # (batch, emb_dim)
+        judge_feat = torch.stack([judge_feat for _ in range(time_size)], dim=1)  # (batch, time, feat_dim)
+        return judge_feat
+
+    def forward(self, spectrum, spk_embed, judge_id, sys_id=None):
         """Calculate forward propagation.
             Args:
                 spectrum has shape (batch, time, dim)
                 spk_embed has shape (batch, spk_embed_dim)
                 judge_id has shape (batch)
+                sys_id [optional] has shape (batch)
         """
         batch, time, dim = spectrum.shape
 
@@ -94,8 +121,11 @@ class SLDNet(nn.Module):
         spk_embed = torch.stack([spk_embed for _ in range(time)], dim=1)  # (batch, time, spk_embed_dim)
 
         # get judge embedding
-        judge_feat = self.judge_embedding(judge_id)  # (batch, emb_dim)
-        judge_feat = torch.stack([judge_feat for i in range(time)], dim=1)  # (batch, time, feat_dim)
+        judge_feat = self._get_judge_feat(judge_id, time)
+
+        # get system embedding
+        if self.use_sys_embed:
+            sys_feat = self._get_sys_feat(sys_id, time)  # (batch, time, feat_dim)
 
         # encoder and inject judge embedding
         if self.config["encoder_type"] in ["mbnetstyle", "mobilenetv2", "mobilenetv3"]:
@@ -104,7 +134,10 @@ class SLDNet(nn.Module):
             encoder_outputs = self.encoder(spectrum)  # (batch, ch, time, feat_dim)
             encoder_outputs = encoder_outputs.view((batch, time, -1))  # (batch, time, feat_dim)
             # concat along feature dimension
-            decoder_inputs = torch.cat([encoder_outputs, judge_feat, spk_embed], dim=-1)
+            if self.use_sys_embed:
+                decoder_inputs = torch.cat([encoder_outputs, judge_feat, sys_feat, spk_embed], dim=-1)
+            else:
+                decoder_inputs = torch.cat([encoder_outputs, judge_feat, spk_embed], dim=-1)
         else:
             raise NotImplementedError
 
@@ -140,8 +173,12 @@ class SLDNet(nn.Module):
 
         # get judge embedding
         judge_id = (torch.ones(batch, dtype=torch.long) * self.num_judges - 1).to(device)  # (bs)
-        judge_feat = self.judge_embedding(judge_id)  # (bs, emb_dim)
-        judge_feat = torch.stack([judge_feat for i in range(time)], dim=1)  # (batch, time, feat_dim)
+        judge_feat = self._get_judge_feat(judge_id, time)
+
+        # get system embedding
+        if self.use_sys_embed:
+            sys_id = (torch.ones(batch, dtype=torch.long) * self.num_systems - 1).to(device)  # (bs)
+            sys_feat = self._get_sys_feat(sys_id, time)  # (batch, time, feat_dim)
 
         # encoder and inject judge embedding
         if self.config["encoder_type"] in ["mobilenetv2", "mobilenetv3"]:
@@ -150,7 +187,10 @@ class SLDNet(nn.Module):
             encoder_outputs = self.encoder(spectrum)  # (batch, ch, time, feat_dim)
             encoder_outputs = encoder_outputs.view((batch, time, -1))  # (batch, time, feat_dim)
             # concat along feature dimension
-            decoder_inputs = torch.cat([encoder_outputs, judge_feat, spk_embed], dim=-1)
+            if self.use_sys_embed:
+                decoder_inputs = torch.cat([encoder_outputs, judge_feat, sys_feat, spk_embed], dim=-1)
+            else:
+                decoder_inputs = torch.cat([encoder_outputs, judge_feat, spk_embed], dim=-1)
         else:
             raise NotImplementedError
 
@@ -167,6 +207,7 @@ class SLDNet(nn.Module):
         return scores
 
     def average_inference(self, spectrum, spk_embed, include_meanspk=False):
+        # FIXME: system embedding
         bs, time, _ = spectrum.shape
         device = spectrum.device
         if self.config["use_mean_listener"] and not include_meanspk:

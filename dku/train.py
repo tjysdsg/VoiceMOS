@@ -148,11 +148,16 @@ def main():
     print("[Info] Number of training samples: {}".format(len(train_set)))
     print("[Info] Number of validation samples: {}".format(len(valid_set)))
 
-    # get number of judges
+    # get number of judges/systems
     num_judges = train_set.num_judges
     config["num_judges"] = num_judges
-    print("[Info] Number of judges: {}".format(num_judges))
-    print("[Info] Use mean listener: {}".format("True" if config["use_mean_listener"] else "False"))
+    print(f"[Info] Number of judges: {num_judges}")
+    print(f"[Info] Use mean listener: {'True' if config['use_mean_listener'] else 'False'}")
+    num_systems = train_set.num_systems
+    config["num_systems"] = num_systems
+    print(f"[Info] Number of systems: {num_systems}")
+    # TODO:
+    #  print(f"[Info] Use mean system: {'True' if config['use_mean_system'] else 'False'}")
 
     # define model
     if config["model"] == "MBNet":
@@ -216,10 +221,11 @@ def main():
                 global_step = pbar.n + 1
 
                 # fetch batch and put on device
-                mag_sgrams_padded, mag_sgrams_lengths, spk_embed, avg_scores, scores, judge_ids = batch
+                mag_sgrams_padded, mag_sgrams_lengths, spk_embed, avg_scores, scores, sys_ids, judge_ids = batch
                 mag_sgrams_padded = mag_sgrams_padded.to(device)
                 spk_embed = spk_embed.to(device)
                 judge_ids = judge_ids.to(device)
+                sys_ids = sys_ids.to(device)
                 avg_scores = avg_scores.to(device)
                 scores = scores.to(device)
 
@@ -229,6 +235,7 @@ def main():
                     spectrum=mag_sgrams_padded,
                     spk_embed=spk_embed,
                     judge_id=judge_ids,
+                    sys_id=sys_ids,
                 )
 
                 # loss calculation
