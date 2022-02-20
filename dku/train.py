@@ -140,7 +140,7 @@ def main():
     # define dataloders
     train_set = get_dataset(
         args.dataset_name, args.data_dir, args.spk_embed_dir, "train", idtable_path, config["padding_mode"],
-        config["use_mean_listener"]
+        config["use_mean_listener"], config['joint_spk_embed'],
     )
     valid_set = get_dataset(args.dataset_name, args.data_dir, args.spk_embed_dir, "valid", idtable_path)
     train_loader = get_dataloader(train_set, batch_size=config["train_batch_size"], num_workers=2)
@@ -155,10 +155,19 @@ def main():
     print("[Info] Use mean listener: {}".format("True" if config["use_mean_listener"] else "False"))
 
     # define model
+    spk_embed_model = None
+    if config['joint_spk_embed']:
+        assert config.get('spk_embed_model_path', None) is not None
+        from spk_embed.model import ResNet34StatsPool, SpeakerEmbedExtractor
+        spk_embed_model = ResNet34StatsPool(34, 128, dropout=0)  # dropout must be 0
+        spk_embed_model.load_state_dict(
+            torch.load(config['spk_embed_model_path'])['model']
+        )
+        spk_embed_model = SpeakerEmbedExtractor(spk_embed_model)
     if config["model"] == "MBNet":
         model = MBNet(config).to(device)
     elif config["model"] == "SLDNet":
-        model = SLDNet(config).to(device)
+        model = SLDNet(config, spk_embed_model=spk_embed_model).to(device)
     else:
         raise NotImplementedError
     print("[Info] Model parameters: {}".format(model.get_num_params()))

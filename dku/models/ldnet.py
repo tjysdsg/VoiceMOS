@@ -2,13 +2,11 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from functools import partial
 from .modules import Projection, MobileNetV2ConvBlocks, MobileNetV3ConvBlocks, STRIDE
 
 
 class SLDNet(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, spk_embed_model: nn.Module = None):
         super().__init__()
         self.config = config
 
@@ -68,6 +66,11 @@ class SLDNet(nn.Module):
             self.mean_net_dnn = Projection(mean_net_dnn_input_dim, config["mean_net_dnn_dim"],
                                            activation, config["output_type"], config["mean_net_range_clipping"])
 
+        self.spk_embed_model = spk_embed_model
+        self.joint_spk_embed = config['joint_spk_embed']
+        if self.joint_spk_embed:
+            assert self.spk_embed_model is not None, "spk_embed_model is required if 'joint_spk_embed' is True"
+
     def _get_output_dim(self, input_size, num_layers, stride=STRIDE):
         """
         calculate the final ouptut width (dim) of a CNN using the following formula
@@ -86,11 +89,16 @@ class SLDNet(nn.Module):
             Args:
                 spectrum has shape (batch, time, dim)
                 spk_embed has shape (batch, spk_embed_dim)
+                            this parameter is the computed spk_embed if joint_spk_embed is False
+                            otherwise it is the input of the spk_embed_model
                 judge_id has shape (batch)
         """
         batch, time, dim = spectrum.shape
 
         # get speaker embedding
+        if self.joint_spk_embed:
+            spk_embed = self.spk_embed_model(spk_embed)
+
         spk_embed = torch.stack([spk_embed for _ in range(time)], dim=1)  # (batch, time, spk_embed_dim)
 
         # get judge embedding

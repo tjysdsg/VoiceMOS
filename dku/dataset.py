@@ -5,7 +5,7 @@ import torch
 from torch.utils.data.dataset import Dataset
 from torch.utils.data import DataLoader
 import scipy
-
+from spk_embed.dataset import WavDataset
 from collections import defaultdict
 import h5py
 from torch.nn.utils.rnn import pad_sequence
@@ -16,12 +16,13 @@ SGRAM_DIM = FFT_SIZE // 2 + 1
 
 class BCVCCDataset(Dataset):
     def __init__(self, original_metadata, data_dir, spk_embed_dir, idtable_path=None, split="train",
-                 padding_mode="zero_padding", use_mean_listener=False):
+                 padding_mode="zero_padding", use_mean_listener=False, load_spk_model_data=False):
         self.data_dir = data_dir
         self.spk_embed_dir = spk_embed_dir
         self.split = split
         self.padding_mode = padding_mode
         self.use_mean_listener = use_mean_listener
+        self.load_spk_model_data = load_spk_model_data
 
         # cache features
         self.features = {}
@@ -42,15 +43,24 @@ class BCVCCDataset(Dataset):
             self.num_judges = len(self.idtable)
 
         self.metadata = []
+        self.wavscp = []
         if self.split == "train":
             for wav_name, judge_name, avg_score, score in metadata:
                 self.metadata.append([wav_name, avg_score, score, self.idtable[judge_name]])
+                self.wavscp.append([wav_name, self._path_from_wav_name(wav_name)])
         else:
-            for item in metadata:
-                self.metadata.append(item)
+            for sys_name, wav_name, avg_score in metadata:  # (sys_name, wav_name, avg_score)
+                self.metadata.append([sys_name, wav_name, avg_score])
+                self.wavscp.append([wav_name, self._path_from_wav_name(wav_name)])
 
             # build system list
             self.systems = list(set([item[0] for item in metadata]))
+
+        if self.load_spk_model_data:
+            self.spk_model_dataset = WavDataset(self.wavscp, fs=16000)
+
+    def _path_from_wav_name(self, wav_name: str):
+        return os.path.join(self.data_dir, "wav", wav_name)
 
     def __getitem__(self, idx):
         if self.split == "train":
@@ -69,14 +79,19 @@ class BCVCCDataset(Dataset):
                 timestep = mag_sgram.shape[0]
                 mag_sgram = np.reshape(mag_sgram, (timestep, SGRAM_DIM))
             else:
-                wav, _ = librosa.load(os.path.join(self.data_dir, "wav", wav_name), sr=16000)
+                wav, _ = librosa.load(self._path_from_wav_name(wav_name), sr=16000)
                 mag_sgram = np.abs(
                     librosa.stft(wav, n_fft=512, hop_length=256, win_length=512, window=scipy.signal.hamming)).astype(
                     np.float32).T
             self.features[wav_name] = mag_sgram
 
-        # load speaker embeddings
-        spk_embed = np.load(os.path.join(self.spk_embed_dir, wav_name.replace('.wav', '.npy')))
+        # speaker embedding
+        if self.load_spk_model_data:
+            # TODO: randomly select the audio length between 2s to 4s
+            spk_embed, _ = self.spk_model_dataset[idx, 3]
+        else:
+            spk_embed = np.load(os.path.join(self.spk_embed_dir, wav_name.replace('.wav', '.npy')))
+            spk_embed = torch.from_numpy(spk_embed)
 
         if self.split == "train":
             return mag_sgram, spk_embed, avg_score, score, judge_id
@@ -116,7 +131,7 @@ class BCVCCDataset(Dataset):
         mag_sgrams = [torch.from_numpy(sorted_batch[i][0]) for i in range(bs)]
         mag_sgrams_lengths = torch.from_numpy(np.array([mag_sgram.size(0) for mag_sgram in mag_sgrams]))
 
-        spk_embeds = torch.stack([torch.from_numpy(sorted_batch[i][1]) for i in range(bs)], dim=0)
+        spk_embeds = torch.stack([sorted_batch[i][1] for i in range(bs)], dim=0)
 
         if self.padding_mode == "zero_padding":
             mag_sgrams_padded = pad_sequence(mag_sgrams, batch_first=True)
@@ -146,7 +161,7 @@ class BCVCCDataset(Dataset):
 
 def get_dataset(
         dataset_name, data_dir, spk_embed_dir, split, idtable_path=None, padding_mode="zero_padding",
-        use_mean_listener=False
+        use_mean_listener=False, load_spk_model_data=False
 ):
     if dataset_name in ["BVCC", "OOD"]:
         names = {"train": "TRAINSET", "valid": "DEVSET", "test": "TESTSET"}
@@ -178,8 +193,10 @@ def get_dataset(
                 # in testing mode, additionally return system name and only average score
                 metadata_with_avg.append([sys_name, wav_name, avg_score])
 
-        return BCVCCDataset(metadata_with_avg, data_dir, spk_embed_dir, idtable_path, split, padding_mode,
-                            use_mean_listener)
+        return BCVCCDataset(
+            metadata_with_avg, data_dir, spk_embed_dir, idtable_path, split, padding_mode, use_mean_listener,
+            load_spk_model_data,
+        )
     else:
         raise NotImplementedError
 

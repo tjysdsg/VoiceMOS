@@ -3,7 +3,8 @@ model: "SLDNet"
 audio_input_dim: 257
 judge_emb_dim: 128
 spk_embed_dim: 128
-joint_spk_embed: False
+joint_spk_embed: True
+spk_embed_model_path: spk_embed/pretrained/ResNet34StatsPool_96.pkl
 
 encoder_type: "mobilenetv3"
 encoder_bneck_configs:
@@ -20,7 +21,7 @@ encoder_bneck_configs:
   - [ 96, 5, 576, 96, True, "HS", 1, 1 ]
 encoder_output_dim: 256
 
-decoder_type: "ffn"
+decoder_type: "rnn"
 decoder_rnn_dim: 128
 decoder_dnn_dim: 64
 decoder_dropout_rate: 0.3
@@ -56,5 +57,5 @@ tau: 0.5
 padding_mode: "repetitive" # repetitive, zero_padding
 mask_loss: False
 total_steps: 100000
-valid_steps: 1000
+valid_steps: 500
 grad_clip: 1

@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from spk_embed.dataset import LogFBankCal
 
 
 class BasicBlock(nn.Module):
@@ -181,3 +182,23 @@ class ResNet34SEStatsPool(nn.Module):
         if self.drop:
             x = self.drop(x)
         return x
+
+
+class SpeakerEmbedExtractor(nn.Module):
+    def __init__(self, spk_embed_model: nn.Module):
+        super().__init__()
+        self.spk_embed_model = spk_embed_model
+        self.feat_extractor = LogFBankCal(
+            sample_rate=16000,
+            n_fft=512,
+            win_length=int(0.025 * 16000),
+            hop_length=int(0.01 * 16000),
+            n_mels=80
+        )
+
+    def forward(self, x):
+        """
+        :param x: (batch, sample)
+        """
+        feature = self.feat_extractor(x).transpose(1, 2)
+        return self.spk_embed_model(feature)

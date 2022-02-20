@@ -3,6 +3,7 @@ model: "SLDNet"
 audio_input_dim: 257
 judge_emb_dim: 128
 spk_embed_dim: 128
+joint_spk_embed: False
 
 encoder_type: "mobilenetv3"
 encoder_bneck_configs:
