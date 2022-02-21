@@ -1,0 +1,90 @@
+=======================================================
+=== README: VoiceMOS Challenge Test Phase Resources ===
+=======================================================
+
+This package contains the preprocessed audio samples for the test sets for the
+VoiceMOS Challenge that we are allowed to distribute.
+
+It also contains scripts to gather and preprocess the Blizzard Challenge samples.
+
+Please read these instructions carefully.  You need to follow these steps to
+obtain ALL of the data needed for the test phase of the challenge.
+
+
+====================
+=== DEPENDENCIES ===
+====================
+
+ * IMPORTANT: You must already have the data from the training phase of the
+ challenge.  You must NOT have deleted anything in the phase1-[main,ood]
+ directories.  If you deleted these directories already, then you must redo
+ the main-phase data download steps.  The reason why is because the scripts
+ gather audio samples that have already been downloaded in the 01_get.py script
+ in the training phase of the challenge.  Since there are many Blizzard archives
+ that take a long time to download, we set up the scripts with the intention
+ that you wouldn't have to download them twice.
+
+ * As for other dependencies, these are the same as before: Python 3.9, SoX,
+ sv56, etc.
+
+
+==================================
+=== MAIN TRACK TEST PHASE DATA ===
+==================================
+
+1. Run `setup_main.py` and give it the path to your phase1-main directory as an
+argument, e.g.:
+
+   python setup_main.py /path/to/your/phase1-main
+
+2. cd /path/to/your/phase1-main
+
+3. Make sure you are using Python 3.9, and run:
+
+   python 04_gather_test.py
+
+4. Finally, make sure that sox and sv56demo are on your path, and run:
+
+   python 05_preprocess_test.py
+
+
+=================================
+=== OOD TRACK TEST PHASE DATA ===
+=================================
+
+1. Run `setup_ood.py` and give it the path to your phase1-ood directory as an
+argument, e.g.:
+
+   python setup_ood.py /path/to/your/phase1-ood
+
+2. cd /path/to/your/phase1-ood
+
+3. Make sure you are using Python 3.9, and run:
+
+   python 04_gather_test.py
+
+4. Finally, make sure that sox and sv56demo are on your path, and run:
+
+   python 05_preprocess_test.py
+
+
+=========================================
+=== NEW FILES AND DIRECTORY STRUCTURE ===
+=========================================
+
+Each of your separate phase1-main and phase1-ood directories should have the
+following newly-added files in addition to the files that were already there:
+
+phase1-[main,ood]:
+|-- 04_gather_test.py      : script to select test set audio
+|-- 05_preprocess_test.py  : script to preprocess test set audio
+|-- DATA
+    |-- sets
+    |   |-- test.scp       : list of test set audio files
+    `-- wav
+        `-- [all wav files including new test set]
+
+
+==================
+=== GOOD LUCK! ===
+==================
