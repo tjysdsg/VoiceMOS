@@ -164,6 +164,10 @@ def main():
             torch.load(config['spk_embed_model_path'])['model']
         )
         spk_embed_model = SpeakerEmbedExtractor(spk_embed_model)
+
+        n_params_spk_model = sum(p.numel() for n, p in spk_embed_model.named_parameters())
+        print(f"[Info] Number of parameters of the speaker embedding model: {n_params_spk_model}")
+
     if config["model"] == "MBNet":
         model = MBNet(config).to(device)
     elif config["model"] == "SLDNet":
